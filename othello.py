@@ -20,6 +20,8 @@ def draw_row(row):
 			line += ' x'
 		elif x == 1:
 			line += ' o'
+		elif x == 2:
+			line += ' *'
 		else:
 			line += '  '
 	return line
@@ -33,6 +35,8 @@ def get_input():
 	space = raw_input("enter your move:")
 	if space == 'exit' or space == 'quit':
 		return
+	if space == 'moves':
+		raise ValueError('set error')
 	if len(space) != 2:
 		raise ValueError("enter it like this: e4")
 	elif ord(space[0]) not in range(65,73)+range(97,105):
@@ -65,14 +69,31 @@ def is_valid(space):
 			i = 2
 			while True:
 				if not on_board(add(space, mult(direction,i))):
-					return False
+					break
 				if board[add(space, mult(direction,i))] == 0:
-					return False
+					break
 				if board[add(space, mult(direction,i))] == turn:
 					return True
 				#otherwise look one square farther
 				i += 1
 	return False
+	
+def capture(space): #given a move 'space' as an ordered pair, this edits the board to flip over all captured pieces
+	for direction in [(1,1),(1,0),(1,-1),(0,-1),(-1,-1),(-1,0),(-1,1),(0,1)]:
+		if on_board(add(space, direction)) and board[add(space, direction)] == -turn:
+			i = 2
+			while True: #this loop searches in the given direction
+				if not on_board(add(space, mult(direction,i))):
+					break #ends the while loop and goes to the next direction
+				if board[add(space, mult(direction,i))] == 0:
+					break #ends the while loop and goes to the next direction
+				if board[add(space, mult(direction,i))] == turn:
+					for j in range(i-1):
+						board[add(space, mult(direction,j+1))] = turn #flips pieces
+					break
+				#otherwise look one square farther
+				i += 1
+	
 				
 def examine_board():
 	valid_moves.clear()
@@ -82,10 +103,21 @@ def examine_board():
 				valid_moves.add((i,j))
 
 #PLAY THE GAME
+print 'Welcome to Othello!\n\n'
 draw_board(board)
 while True:
 	examine_board()
-
+	if len(valid_moves) == 0:
+		print '\nGAME OVER\n'
+		xs = np.sum(board == -1)
+		os = np.sum(board == 1)
+		if xs > os:
+			print 'Black wins', xs, 'to', os
+		elif os > xs:
+			print 'White wins', os, 'to', xs
+		else:
+			print 'It was a tie!', os, 'to', xs
+		break
 	while True: #getting a valid move
 		try:
 			space = get_input()
@@ -94,14 +126,22 @@ while True:
 			assert space in valid_moves
 			break
 		except ValueError as e:
-			print e
+			if str(e) == 'set error':
+				b = board.copy()
+				for m in valid_moves:
+					b[m] = 2
+				draw_board(b)
+			else:
+				print e
 		except AssertionError:
 			print "that move is not valid"
 	if space is None:
 		break #ends the game
 		
-		
-	board[space] = turn
+	board[space] = turn #places the piece
+	capture(space)		#flips over all captured pieces
+	
+	
 	draw_board(board)
 	turn *= -1
 
