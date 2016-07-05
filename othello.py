@@ -1,16 +1,19 @@
 #othello.py
 import numpy as np
 
-board = np.zeros((8,8)).astype(int)
-board[3,3] = 1
-board[4,4] = 1
-board[4,3] = -1
-board[3,4] = -1
+board = np.array([[0,0,0,0,0,0,0,0],
+				  [0,0,0,0,0,0,0,0],
+				  [0,0,0,0,0,0,0,0],
+				  [0,0,0,-1,1,0,0,0],
+				  [0,0,0,1,-1,0,0,0],
+				  [0,0,0,0,0,0,0,0],
+				  [0,0,0,0,0,0,0,0],
+				  [0,0,0,0,0,0,0,0]]).astype(int)
 
 # 0 for empty, 1 for white, -1 for black
 
 turn = 1
-valid_moves = set()
+move_table = {}
 # print 'I just assigned turn'
 
 def draw_row(row):
@@ -37,6 +40,8 @@ def get_input():
 		return
 	if space == 'moves':
 		raise ValueError('set error')
+	if space == 'cheat':
+		raise ValueError('cheat')
 	if len(space) != 2:
 		raise ValueError("enter it like this: e4")
 	elif ord(space[0]) not in range(65,73)+range(97,105):
@@ -52,6 +57,9 @@ def get_input():
 	j = ord(space[1]) - 49
 	return (j,i)
 	
+def tup_to_str(tup):
+	return chr(tup[1] + 97) + str(tup[0] + 1)
+	
 def add(tup1, tup2):
 	return tup1[0]+tup2[0], tup1[1]+tup2[1]
 	
@@ -60,54 +68,69 @@ def mult(tup, i):
 	
 def on_board(space):
 	return space[0] in range(8) and space[1] in range(8)
-
-def is_valid(space):
+	
+def capture(space): #given a move 'space' as an ordered pair, this edits the board to flip over all captured pieces
+	if space not in move_table:
+		raise ValueError("you done messed up aaron")
+	for flip in move_table[space]:
+		board[flip] = turn
+				
+				
+def examine_board():
+	move_table.clear()
+	for i in range(8):
+		for j in range(8):
+			a = get_validity((i,j))
+			if len(a) > 0:
+				move_table[(i,j)] = a
+				
+def get_validity(space):
 	if board[space] != 0:
-		return False
+		return []
+	flips = []
 	for direction in [(1,1),(1,0),(1,-1),(0,-1),(-1,-1),(-1,0),(-1,1),(0,1)]:
 		if on_board(add(space, direction)) and board[add(space, direction)] == -turn:
 			i = 2
+			temp_flips = [add(space, direction)]
 			while True:
 				if not on_board(add(space, mult(direction,i))):
 					break
 				if board[add(space, mult(direction,i))] == 0:
 					break
 				if board[add(space, mult(direction,i))] == turn:
-					return True
-				#otherwise look one square farther
-				i += 1
-	return False
-	
-def capture(space): #given a move 'space' as an ordered pair, this edits the board to flip over all captured pieces
-	for direction in [(1,1),(1,0),(1,-1),(0,-1),(-1,-1),(-1,0),(-1,1),(0,1)]:
-		if on_board(add(space, direction)) and board[add(space, direction)] == -turn:
-			i = 2
-			while True: #this loop searches in the given direction
-				if not on_board(add(space, mult(direction,i))):
-					break #ends the while loop and goes to the next direction
-				if board[add(space, mult(direction,i))] == 0:
-					break #ends the while loop and goes to the next direction
-				if board[add(space, mult(direction,i))] == turn:
-					for j in range(i-1):
-						board[add(space, mult(direction,j+1))] = turn #flips pieces
+					flips += temp_flips
 					break
-				#otherwise look one square farther
-				i += 1
-	
+				temp_flips.append(add(space, mult(direction, i)))
 				
-def examine_board():
-	valid_moves.clear()
-	for i in range(8):
-		for j in range(8):
-			if is_valid((i,j)):
-				valid_moves.add((i,j))
+				i += 1
+	return flips				
+	
+def getAIMove():
+	moves = move_table.keys()
+	for move in moves:
+		if 0 in move or 7 in move:
+			return move
+	return max(moves, key = lambda m: len(move_table[m]))
+	
 
 #PLAY THE GAME
 print 'Welcome to Othello!\n\n'
+print 'Would you like to play against the computer? (y/n)'
+while True:
+	a = raw_input()
+	if a == 'y':
+		one_player = True
+		break
+	elif a == 'n':
+		one_player = False
+	else:
+		print 'Please enter y/n'
+
+
 draw_board(board)
 while True:
 	examine_board()
-	if len(valid_moves) == 0:
+	if len(move_table) == 0: #no valid moves left
 		print '\nGAME OVER\n'
 		xs = np.sum(board == -1)
 		os = np.sum(board == 1)
@@ -118,30 +141,37 @@ while True:
 		else:
 			print 'It was a tie!', os, 'to', xs
 		break
-	while True: #getting a valid move
-		try:
-			space = get_input()
-			if space is None:
+	if turn == -1 and one_player:
+		space = getAIMove()
+	else:	
+		while True: #getting a valid move
+			try:
+				space = get_input()
+				if space is None:
+					break
+				assert space in move_table
 				break
-			assert space in valid_moves
-			break
-		except ValueError as e:
-			if str(e) == 'set error':
-				b = board.copy()
-				for m in valid_moves:
-					b[m] = 2
-				draw_board(b)
-			else:
-				print e
-		except AssertionError:
-			print "that move is not valid"
+			except ValueError as e:
+				if str(e) == 'set error':
+					b = board.copy()
+					for m in move_table:
+						b[m] = 2
+					draw_board(b)
+				elif str(e) == 'cheat':
+					space = getAIMove()
+					print "AI move:", tup_to_str(space)
+					break
+				else:
+					print e
+			except AssertionError:
+				print "that move is not valid"
 	if space is None:
 		break #ends the game
 		
 	board[space] = turn #places the piece
 	capture(space)		#flips over all captured pieces
 	
-	
+	print ''
 	draw_board(board)
 	turn *= -1
 
